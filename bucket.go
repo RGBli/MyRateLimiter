@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// 令牌桶限流器
 type BucketRateLimiter struct {
 	*FixedWindowRateLimiter
 	maxToken int

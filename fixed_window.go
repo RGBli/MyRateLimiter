@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// 固定窗口限流器，构成其他限流器的基类
 type FixedWindowRateLimiter struct {
 	mu                        sync.Mutex
 	rate                      int
@@ -38,21 +39,18 @@ func (rl *FixedWindowRateLimiter) Limit() bool {
 		return true
 	}
 
-	if now.Sub(rl.lastTimeNode) > rl.duration {
-		i := int64(1)
-		for rl.lastTimeNode.Add(time.Duration(i * int64(rl.duration))).Before(now) {
-			i++
-		}
-		rl.lastTimeNode = rl.lastTimeNode.Add(time.Duration((i - 1) * int64(rl.duration)))
-		rl.requestsSinceLastTimeNode = 1
-		return true
-	} else {
+	if now.Sub(rl.lastTimeNode) <= rl.duration {
 		if rl.requestsSinceLastTimeNode >= rl.rate {
 			return false
 		} else {
 			rl.requestsSinceLastTimeNode++
 			return true
 		}
+	} else {
+		durations := now.Sub(rl.lastTimeNode) / rl.duration
+		rl.lastTimeNode = rl.lastTimeNode.Add(durations * rl.duration)
+		rl.requestsSinceLastTimeNode = 1
+		return true
 	}
 }
 

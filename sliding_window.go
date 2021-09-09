@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// 滑动窗口限流器
 type SlidingWindowRateLimiter struct {
 	*FixedWindowRateLimiter
 	slidingUnit time.Duration
@@ -38,8 +39,12 @@ func (rl *SlidingWindowRateLimiter) Limit() bool {
 		return false
 	} else if int64(now.Sub(rl.lastTimeNode)) < int64(2*len(rl.requests)-1)*int64(rl.slidingUnit) {
 		i := int(1 + now.Sub(rl.lastTimeNode)/rl.slidingUnit)
-		for j := 0; j < 2*len(rl.requests)-i; j++ {
-			rl.requests[j] = rl.requests[j+i-len(rl.requests)]
+		for j := 0; j < len(rl.requests); j++ {
+			if j < 2*len(rl.requests)-i {
+				rl.requests[j] = rl.requests[j+i-len(rl.requests)]
+			} else {
+				rl.requests[j] = 1
+			}
 		}
 		rl.lastTimeNode = rl.lastTimeNode.Add(time.Duration(int64(rl.slidingUnit) * int64(i-len(rl.requests))))
 		if sliceSum(rl.requests) < rl.rate {
@@ -48,11 +53,8 @@ func (rl *SlidingWindowRateLimiter) Limit() bool {
 		}
 		return false
 	} else {
-		i := int64(1)
-		for rl.lastTimeNode.Add(time.Duration(i * int64(rl.duration))).Before(now) {
-			i++
-		}
-		rl.lastTimeNode = rl.lastTimeNode.Add(time.Duration((i - 1) * int64(rl.duration)))
+		units := now.Sub(rl.lastTimeNode) / rl.slidingUnit
+		rl.lastTimeNode = rl.lastTimeNode.Add(units * rl.duration)
 		setZero(rl.requests)
 		return true
 	}

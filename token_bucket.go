@@ -6,15 +6,15 @@ import (
 )
 
 // 令牌桶限流器
-type BucketRateLimiter struct {
+type TokenBucketRateLimiter struct {
 	*FixedWindowRateLimiter
 	maxToken int
 	tokens   float64
 	speed    float64
 }
 
-func NewBucketRateLimiter(rate int, duration time.Duration, maxToken int) *BucketRateLimiter {
-	return &BucketRateLimiter{
+func NewTokenBucketRateLimiter(rate int, duration time.Duration, maxToken int) *TokenBucketRateLimiter {
+	return &TokenBucketRateLimiter{
 		FixedWindowRateLimiter: NewFixedWindowRateLimiter(rate, duration),
 		maxToken:               maxToken,
 		tokens:                 float64(maxToken),
@@ -22,7 +22,7 @@ func NewBucketRateLimiter(rate int, duration time.Duration, maxToken int) *Bucke
 	}
 }
 
-func (rl *BucketRateLimiter) Limit() bool {
+func (rl *TokenBucketRateLimiter) Limit() bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
@@ -38,7 +38,7 @@ func (rl *BucketRateLimiter) Limit() bool {
 	return false
 }
 
-func (rl *BucketRateLimiter) UpdateLimiter(rate int, duration time.Duration, maxToken int) {
+func (rl *TokenBucketRateLimiter) UpdateLimiter(rate int, duration time.Duration, maxToken int) {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 	rl.rate = rate

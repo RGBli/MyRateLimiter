@@ -48,7 +48,7 @@ func (rl *SlidingWindowRateLimiter) Limit() bool {
 		}
 		rl.lastTimeNode = rl.lastTimeNode.Add(time.Duration(int64(rl.slidingUnit) * int64(i-len(rl.requests))))
 		if sliceSum(rl.requests) < rl.rate {
-			rl.requests[i]++
+			rl.requests[len(rl.requests)-1]++
 			return true
 		}
 		return false

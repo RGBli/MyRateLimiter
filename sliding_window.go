@@ -1,26 +1,23 @@
 package myratelimiter
 
 import (
-	"math"
 	"time"
 )
 
-// 滑动窗口限流器
 type SlidingWindowRateLimiter struct {
 	*FixedWindowRateLimiter
-	slidingUnit time.Duration
-	// requests 和 lastTimeNode 构成了滑动窗的基本单元
-	requests []int
+	slidingUnits int64
+	unitDuration time.Duration
+	requests     []int
 }
 
-func NewSlidingWindowRateLimiter(rate int, duration time.Duration, slidingUnit time.Duration) *SlidingWindowRateLimiter {
-	if slidingUnit > duration {
-		panic("Duration cannot be less than slidingUnit")
-	}
-	requests := make([]int, int(math.Ceil(float64(duration.Nanoseconds()/slidingUnit.Nanoseconds()))))
+func NewSlidingWindowRateLimiter(rate int, duration time.Duration, slidingUnits int64) *SlidingWindowRateLimiter {
+	unitDuration := time.Duration(duration.Nanoseconds() / slidingUnits)
+	requests := make([]int, slidingUnits)
 	return &SlidingWindowRateLimiter{
 		FixedWindowRateLimiter: NewFixedWindowRateLimiter(rate, duration),
-		slidingUnit:            slidingUnit,
+		slidingUnits:           slidingUnits,
+		unitDuration:           unitDuration,
 		requests:               requests,
 	}
 }
@@ -30,40 +27,38 @@ func (rl *SlidingWindowRateLimiter) Limit() bool {
 	defer rl.mu.Unlock()
 
 	now := time.Now()
-	if now.Sub(rl.lastTimeNode) < rl.duration {
-		i := now.Sub(rl.lastTimeNode) / rl.slidingUnit
+	if now.Sub(rl.window) < rl.duration {
+		i := now.Sub(rl.window) / rl.unitDuration
 		if sliceSum(rl.requests) < rl.rate {
 			rl.requests[i]++
 			return true
 		}
 		return false
-	} else if int64(now.Sub(rl.lastTimeNode)) < int64(2*len(rl.requests)-1)*int64(rl.slidingUnit) {
-		i := int(1 + now.Sub(rl.lastTimeNode)/rl.slidingUnit)
-		for j := 0; j < len(rl.requests); j++ {
-			if j < 2*len(rl.requests)-i {
-				rl.requests[j] = rl.requests[j+i-len(rl.requests)]
-			} else {
-				rl.requests[j] = 1
-			}
+	} else if now.Before(rl.window.Add(rl.unitDuration * time.Duration(2*rl.slidingUnits-1))) {
+		step := int(now.Sub(rl.window)/rl.unitDuration) + 1
+		for i := 0; i < int(rl.slidingUnits)-step; i++ {
+			rl.requests[i] = rl.requests[i+step]
 		}
-		rl.lastTimeNode = rl.lastTimeNode.Add(time.Duration(int64(rl.slidingUnit) * int64(i-len(rl.requests))))
+		for i := int(rl.slidingUnits) - step; i < len(rl.requests); i++ {
+			rl.requests[i] = 0
+		}
+		rl.window = rl.window.Add(rl.unitDuration * time.Duration(step))
 		if sliceSum(rl.requests) < rl.rate {
-			rl.requests[len(rl.requests)-1]++
+			rl.requests[len(rl.requests)-1] = 1
 			return true
 		}
 		return false
 	} else {
-		units := now.Sub(rl.lastTimeNode) / rl.slidingUnit
-		rl.lastTimeNode = rl.lastTimeNode.Add(units * rl.duration)
-		setZero(rl.requests)
+		rl.window = now
+		setSliceZero(rl.requests)
 		return true
 	}
 }
 
-func (rl *SlidingWindowRateLimiter) UpdateLimiter(rate int, duration time.Duration, slidingUnit time.Duration) {
+func (rl *SlidingWindowRateLimiter) UpdateLimiter(rate int, duration time.Duration, slidingUnits int64) {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 	rl.rate = rate
 	rl.duration = duration
-	rl.slidingUnit = slidingUnit
+	rl.slidingUnits = slidingUnits
 }

@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-// 令牌桶限流器
 type TokenBucketRateLimiter struct {
 	*FixedWindowRateLimiter
 	maxToken int
@@ -29,7 +28,7 @@ func (rl *TokenBucketRateLimiter) Limit() bool {
 	now := time.Now()
 	passed := now.Sub(rl.lastRequestTime)
 	rl.lastRequestTime = now
-	rl.tokens += float64(passed) * float64(rl.rate) / float64(rl.duration)
+	rl.tokens += float64(passed) * rl.speed
 	rl.tokens = math.Min(rl.tokens, float64(rl.maxToken))
 	if rl.tokens > 0 {
 		rl.tokens--
@@ -41,6 +40,7 @@ func (rl *TokenBucketRateLimiter) Limit() bool {
 func (rl *TokenBucketRateLimiter) UpdateLimiter(rate int, duration time.Duration, maxToken int) {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
+
 	rl.rate = rate
 	rl.duration = duration
 	rl.maxToken = maxToken

@@ -6,7 +6,6 @@ import (
 )
 
 // 对三种限流器的基准测试
-
 func BenchmarkFixedWindowRateLimiter_Limit(b *testing.B) {
 	rl := NewFixedWindowRateLimiter(1000, time.Second)
 	b.ResetTimer()
@@ -18,7 +17,7 @@ func BenchmarkFixedWindowRateLimiter_Limit(b *testing.B) {
 }
 
 func BenchmarkSlidingWindowRateLimiter_Limit(b *testing.B) {
-	rl := NewSlidingWindowRateLimiter(1000, time.Second, time.Second)
+	rl := NewSlidingWindowRateLimiter(1000, time.Second, 5)
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {

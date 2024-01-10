@@ -5,60 +5,57 @@ import (
 )
 
 type SlidingWindowRateLimiter struct {
-	*FixedWindowRateLimiter
-	slidingUnits int64
-	unitDuration time.Duration
-	requests     []int
+	*BaseRateLimiter
+	units            int64
+	reqInUnits       map[int64]int64
+	thresholdPerUnit float64
+	startTime        time.Time
 }
 
-func NewSlidingWindowRateLimiter(rate int, duration time.Duration, slidingUnits int64) *SlidingWindowRateLimiter {
-	unitDuration := time.Duration(duration.Nanoseconds() / slidingUnits)
-	requests := make([]int, slidingUnits)
+func NewSlidingWindowRateLimiter(limitCount int64, duration time.Duration, units int64) *SlidingWindowRateLimiter {
+	reqInUnits := make(map[int64]int64)
+	thresholdPerUnit := float64(limitCount / units)
 	return &SlidingWindowRateLimiter{
-		FixedWindowRateLimiter: NewFixedWindowRateLimiter(rate, duration),
-		slidingUnits:           slidingUnits,
-		unitDuration:           unitDuration,
-		requests:               requests,
+		BaseRateLimiter:  NewBaseRateLimiter(limitCount, duration),
+		units:            units,
+		reqInUnits:       reqInUnits,
+		thresholdPerUnit: thresholdPerUnit,
+		startTime:        time.Now(),
 	}
 }
 
 func (rl *SlidingWindowRateLimiter) Limit() bool {
 	rl.mu.Lock()
-	defer rl.mu.Unlock()
-
 	now := time.Now()
-	if now.Sub(rl.window) < rl.duration {
-		i := now.Sub(rl.window) / rl.unitDuration
-		if sliceSum(rl.requests) < rl.rate {
-			rl.requests[i]++
-			return true
+	index := now.Sub(rl.startTime).Nanoseconds() / (rl.duration.Nanoseconds() / rl.units)
+	defer func() {
+		// drop expired records with 10% sample rate
+		if now.Unix()%10 == 0 {
+			rl.dropExpiredRecords(index)
 		}
-		return false
-	} else if now.Before(rl.window.Add(rl.unitDuration * time.Duration(2*rl.slidingUnits-1))) {
-		step := int(now.Sub(rl.window)/rl.unitDuration) + 1
-		for i := 0; i < int(rl.slidingUnits)-step; i++ {
-			rl.requests[i] = rl.requests[i+step]
-		}
-		for i := int(rl.slidingUnits) - step; i < len(rl.requests); i++ {
-			rl.requests[i] = 0
-		}
-		rl.window = rl.window.Add(rl.unitDuration * time.Duration(step))
-		if sliceSum(rl.requests) < rl.rate {
-			rl.requests[len(rl.requests)-1] = 1
-			return true
-		}
-		return false
-	} else {
-		rl.window = now
-		setSliceZero(rl.requests)
+		rl.mu.Unlock()
+	}()
+
+	if float64(rl.reqInUnits[index]+1) <= rl.thresholdPerUnit {
+		rl.reqInUnits[index]++
 		return true
 	}
+
+	return false
 }
 
-func (rl *SlidingWindowRateLimiter) UpdateLimiter(rate int, duration time.Duration, slidingUnits int64) {
+func (rl *SlidingWindowRateLimiter) UpdateLimiter(limitCount int64, duration time.Duration, units int64) {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
-	rl.rate = rate
+	rl.limitCount = limitCount
 	rl.duration = duration
-	rl.slidingUnits = slidingUnits
+	rl.units = units
+}
+
+func (rl *SlidingWindowRateLimiter) dropExpiredRecords(i int64) {
+	for k := range rl.reqInUnits {
+		if k < i-rl.units {
+			delete(rl.reqInUnits, k)
+		}
+	}
 }

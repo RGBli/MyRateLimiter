@@ -1,28 +1,19 @@
 package myratelimiter
 
 import (
-	"sync"
 	"time"
 )
 
 // FixedWindowRateLimiter is the base struct for other rate limiter
 type FixedWindowRateLimiter struct {
-	mu              sync.Mutex
-	rate            int
-	duration        time.Duration
-	lastRequestTime time.Time
-	// left edge of window
-	window            time.Time
-	requestsInWindows int
+	*BaseRateLimiter
+	reqsInWindows int64
 }
 
-func NewFixedWindowRateLimiter(rate int, duration time.Duration) *FixedWindowRateLimiter {
+func NewFixedWindowRateLimiter(limitCount int64, duration time.Duration) *FixedWindowRateLimiter {
 	return &FixedWindowRateLimiter{
-		rate:              rate,
-		duration:          duration,
-		lastRequestTime:   time.Now(),
-		window:            time.Now(),
-		requestsInWindows: 0,
+		BaseRateLimiter: NewBaseRateLimiter(limitCount, duration),
+		reqsInWindows:   0,
 	}
 }
 
@@ -31,33 +22,26 @@ func (rl *FixedWindowRateLimiter) Limit() bool {
 	defer rl.mu.Unlock()
 
 	now := time.Now()
-	lastRequestTime := rl.lastRequestTime
 	rl.lastRequestTime = now
 
-	// fast return
-	if now.Sub(lastRequestTime) > rl.duration {
-		rl.requestsInWindows = 1
+	if now.Sub(rl.windowStartTime) > rl.duration {
+		// update window
+		rl.windowStartTime = now
+		rl.reqsInWindows = 1
 		return true
 	}
 
-	if now.Sub(rl.window) <= rl.duration {
-		if rl.requestsInWindows >= rl.rate {
-			return false
-		} else {
-			rl.requestsInWindows++
-			return true
-		}
-	} else {
-		// update window
-		rl.window = now
-		rl.requestsInWindows = 1
+	if rl.reqsInWindows < rl.limitCount {
+		rl.reqsInWindows++
 		return true
 	}
+
+	return false
 }
 
-func (rl *FixedWindowRateLimiter) UpdateLimiter(rate int, duration time.Duration) {
+func (rl *FixedWindowRateLimiter) UpdateLimiter(limitCount int64, duration time.Duration) {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
-	rl.rate = rate
+	rl.limitCount = limitCount
 	rl.duration = duration
 }

@@ -10,7 +10,7 @@ type FixedWindowRateLimiter struct {
 	reqsInWindows int64
 }
 
-func NewFixedWindowRateLimiter(limitCount int64, duration time.Duration) *FixedWindowRateLimiter {
+func NewFixedWindowRateLimiter(limitCount int64, duration int64) *FixedWindowRateLimiter {
 	return &FixedWindowRateLimiter{
 		BaseRateLimiter: NewBaseRateLimiter(limitCount, duration),
 		reqsInWindows:   0,
@@ -21,10 +21,10 @@ func (rl *FixedWindowRateLimiter) Limit() bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
-	now := time.Now()
+	now := time.Now().Unix()
 	rl.lastRequestTime = now
 
-	if now.Sub(rl.windowStartTime) > rl.duration {
+	if now-rl.windowStartTime > rl.duration {
 		// update window
 		rl.windowStartTime = now
 		rl.reqsInWindows = 1
@@ -39,7 +39,7 @@ func (rl *FixedWindowRateLimiter) Limit() bool {
 	return false
 }
 
-func (rl *FixedWindowRateLimiter) UpdateLimiter(limitCount int64, duration time.Duration) {
+func (rl *FixedWindowRateLimiter) UpdateLimiter(limitCount int64, duration int64) {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 	rl.limitCount = limitCount

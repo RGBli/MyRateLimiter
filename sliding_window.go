@@ -9,10 +9,10 @@ type SlidingWindowRateLimiter struct {
 	units            int64
 	reqInUnits       map[int64]int64
 	thresholdPerUnit float64
-	startTime        time.Time
+	startTime        int64
 }
 
-func NewSlidingWindowRateLimiter(limitCount int64, duration time.Duration, units int64) *SlidingWindowRateLimiter {
+func NewSlidingWindowRateLimiter(limitCount int64, duration int64, units int64) *SlidingWindowRateLimiter {
 	reqInUnits := make(map[int64]int64)
 	thresholdPerUnit := float64(limitCount / units)
 	return &SlidingWindowRateLimiter{
@@ -20,17 +20,17 @@ func NewSlidingWindowRateLimiter(limitCount int64, duration time.Duration, units
 		units:            units,
 		reqInUnits:       reqInUnits,
 		thresholdPerUnit: thresholdPerUnit,
-		startTime:        time.Now(),
+		startTime:        time.Now().Unix(),
 	}
 }
 
 func (rl *SlidingWindowRateLimiter) Limit() bool {
 	rl.mu.Lock()
-	now := time.Now()
-	index := now.Sub(rl.startTime).Nanoseconds() / (rl.duration.Nanoseconds() / rl.units)
+	now := time.Now().Unix()
+	index := (now - rl.startTime) / (rl.duration / rl.units)
 	defer func() {
 		// drop expired records with 10% sample rate
-		if now.Unix()%10 == 0 {
+		if now%10 == 0 {
 			rl.dropExpiredRecords(index)
 		}
 		rl.mu.Unlock()
@@ -44,7 +44,7 @@ func (rl *SlidingWindowRateLimiter) Limit() bool {
 	return false
 }
 
-func (rl *SlidingWindowRateLimiter) UpdateLimiter(limitCount int64, duration time.Duration, units int64) {
+func (rl *SlidingWindowRateLimiter) UpdateLimiter(limitCount int64, duration int64, units int64) {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 	rl.limitCount = limitCount

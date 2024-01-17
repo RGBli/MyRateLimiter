@@ -2,12 +2,11 @@ package myratelimiter
 
 import (
 	"testing"
-	"time"
 )
 
 // 对三种限流器的基准测试
 func BenchmarkFixedWindowRateLimiter_Limit(b *testing.B) {
-	rl := NewFixedWindowRateLimiter(1000, time.Second)
+	rl := NewFixedWindowRateLimiter(1000, 1)
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
@@ -17,7 +16,7 @@ func BenchmarkFixedWindowRateLimiter_Limit(b *testing.B) {
 }
 
 func BenchmarkSlidingWindowRateLimiter_Limit(b *testing.B) {
-	rl := NewSlidingWindowRateLimiter(1000, time.Second, 5)
+	rl := NewSlidingWindowRateLimiter(1000, 1, 5)
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
@@ -27,7 +26,7 @@ func BenchmarkSlidingWindowRateLimiter_Limit(b *testing.B) {
 }
 
 func BenchmarkTokenBucketRateLimiter_Limit(b *testing.B) {
-	rl := NewTokenBucketRateLimiter(1000, time.Second, 2000)
+	rl := NewTokenBucketRateLimiter(1000, 1, 2000)
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {

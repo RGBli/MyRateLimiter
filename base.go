@@ -9,16 +9,16 @@ import (
 type BaseRateLimiter struct {
 	mu              sync.Mutex
 	limitCount      int64
-	duration        time.Duration
-	lastRequestTime time.Time
-	windowStartTime time.Time
+	duration        int64
+	lastRequestTime int64
+	windowStartTime int64
 }
 
-func NewBaseRateLimiter(limitCount int64, duration time.Duration) *BaseRateLimiter {
+func NewBaseRateLimiter(limitCount int64, duration int64) *BaseRateLimiter {
 	return &BaseRateLimiter{
 		limitCount:      limitCount,
 		duration:        duration,
-		lastRequestTime: time.Now(),
-		windowStartTime: time.Now(),
+		lastRequestTime: time.Now().Unix(),
+		windowStartTime: time.Now().Unix(),
 	}
 }
